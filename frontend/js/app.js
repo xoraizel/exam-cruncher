@@ -1,100 +1,151 @@
 // frontend/js/app.js
-import { LocalInferenceEngine } from './ai/inference.js';
+import { BrainManager } from './ai/BrainManager.js';
+import { ScheduleEngine } from './engine/scheduler.js';
 
-// DOM Element Selectors
 const consoleLog = document.getElementById('status-console');
 const outputArea = document.getElementById('output-area');
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
 const syllabusInput = document.getElementById('syllabus-input');
 const daysInput = document.getElementById('days-input');
+const groqKeyInput = document.getElementById('groq-key-input');
+const geminiKeyInput = document.getElementById('gemini-key-input');
+const crunchBtn = document.getElementById('crunch-btn');
 
-/**
- * Appends stream lines into our simulated UI terminal console
- * and forces auto-scrolling to the latest log item.
- */
 function updateConsole(msg) {
-    if (consoleLog) {
-        consoleLog.innerText += `\n> ${msg}`;
-        consoleLog.scrollTop = consoleLog.scrollHeight;
-    } else {
-        consoleLog.innerText = `> ${msg}`;
-    }
+  if (consoleLog) {
+    consoleLog.innerText += `\n> ${msg}`;
+    consoleLog.scrollTop = consoleLog.scrollHeight;
+  }
 }
 
-/**
- * Main Application Orchestration Pipeline
- */
-export async function startCrunchPipeline() {
-    const rawText = syllabusInput ? syllabusInput.value.trim() : "";
-    const days = daysInput ? parseInt(daysInput.value, 10) : 0;
-
-    // 1. Validation Checks
-    if (!rawText) {
-        alert("Please paste your raw syllabus text before running execution.");
-        return;
-    }
-    if (isNaN(days) || days <= 0) {
-        alert("Please enter a valid number of days remaining until your exam.");
-        return;
-    }
-
-    // 2. Clear previous UI state
-    if (outputArea) outputArea.style.display = "none";
-    consoleLog.innerText = "> Initializing Client-Side Pipeline...";
-    
-    // 3. Reveal and reset progress bar components
-    if (progressContainer && progressBar) {
-        progressContainer.style.display = "block";
-        progressBar.style.width = "0%";
-        progressBar.style.backgroundColor = "var(--accent-color, #3b82f6)"; // Reset back to theme primary blue
-    }
-    
-    try {
-        // 4. Instantiate local model loader
-        const aiEngine = new LocalInferenceEngine(updateConsole);
-        
-        // 5. Fire initialization and feed progress directly to the visual bar width
-        await aiEngine.initEngine((progressDecimal) => {
-            const percentage = Math.round(progressDecimal * 100);
-            if (progressBar) {
-                progressBar.style.width = `${percentage}%`;
-            }
-        });
-        
-        // Smoothly fade out progress bar container shortly after hitting 100%
-        setTimeout(() => {
-            if (progressContainer) progressContainer.style.display = "none";
-        }, 1000);
-
-        // 6. Execute local structural AI extraction
-        const extractedJson = await aiEngine.extractSyllabus(rawText, days);
-        updateConsole("AI structural extraction contract fulfilled successfully.");
-        updateConsole("Passing structured payload to Deterministic Algorithmic Crunch Engine...");
-
-        // 7. Update UI to present the resulting output container
-        if (outputArea) {
-            outputArea.style.display = "block";
-            outputArea.innerText = `--- Dynamic Plan Generated Successfully ---\n\nSubject Detected: ${extractedJson.subject_name || "Unknown Course"}\nTarget Framework: ${days} Days\n\n[Syllabus layout structures parsed successfully inside local cache browser instances. Passing data payload to custom template calculation layer...]`;
-            outputArea.scrollTop = 0;
-        }
-        
-    } catch (err) {
-        // Handle failure vectors (e.g., Browser lacks WebGPU support, model download interrupted)
-        updateConsole(`Runtime Exception: ${err.message}`);
-        
-        if (progressBar) {
-            progressBar.style.width = "100%";
-            progressBar.style.backgroundColor = "#ef4444"; // Changes progress bar into a warning red signaling failure
-        }
-        console.error("Pipeline breakdown details:", err);
-    }
+function setProgress(percent, color) {
+  if (progressBar) {
+    progressBar.style.width = `${percent}%`;
+    if (color) progressBar.style.backgroundColor = color;
+  }
 }
 
-// Automatically bind the pipeline process to your crunch button once the DOM finishes loading
+function loadKeys() {
+  const groq = groqKeyInput ? groqKeyInput.value.trim() : "";
+  const gemini = geminiKeyInput ? geminiKeyInput.value.trim() : "";
+  // Also check localStorage for persisted keys
+  return {
+    GROQ_API_KEY: groq || localStorage.getItem('groq_api_key') || "",
+    GEMINI_API_KEY: gemini || localStorage.getItem('gemini_api_key') || ""
+  };
+}
+
+function saveKeys(keys) {
+  if (keys.GROQ_API_KEY) localStorage.setItem('groq_api_key', keys.GROQ_API_KEY);
+  if (keys.GEMINI_API_KEY) localStorage.setItem('gemini_api_key', keys.GEMINI_API_KEY);
+}
+
+function validateSyllabusData(data) {
+  if (!data || !data.subject_name || !Array.isArray(data.modules)) {
+    throw new Error("AI returned invalid data structure. Missing subject_name or modules.");
+  }
+  for (const mod of data.modules) {
+    if (!mod.name || !Array.isArray(mod.daily_tasks)) {
+      throw new Error(`Module "${mod.name || 'unnamed'}" is missing daily_tasks.`);
+    }
+  }
+  return true;
+}
+
+async function startCrunchPipeline() {
+  const rawText = syllabusInput ? syllabusInput.value.trim() : "";
+  const days = daysInput ? parseInt(daysInput.value, 10) : 0;
+
+  if (!rawText) {
+    alert("Please paste your raw syllabus text before running.");
+    return;
+  }
+  if (isNaN(days) || days <= 0) {
+    alert("Please enter a valid number of days.");
+    return;
+  }
+
+  const keys = loadKeys();
+  if (!keys.GROQ_API_KEY && !keys.GEMINI_API_KEY) {
+    alert("Please enter at least one API key (Groq or Gemini) in the settings panel.");
+    return;
+  }
+  saveKeys(keys);
+
+  // Reset UI
+  if (outputArea) outputArea.style.display = "none";
+  consoleLog.innerText = "> Starting Exam Cruncher pipeline...";
+  if (progressContainer && progressBar) {
+    progressContainer.style.display = "block";
+    setProgress(5, "var(--accent-color)");
+  }
+  crunchBtn.disabled = true;
+  crunchBtn.textContent = "Crunching...";
+
+  try {
+    const brain = new BrainManager(keys, updateConsole);
+    updateConsole("Routing through AI extraction tier...");
+
+    const extractedData = await brain.getSyllabusData(rawText, days, (progressDecimal) => {
+      const pct = Math.round(5 + progressDecimal * 90);
+      setProgress(pct);
+    });
+
+    updateConsole("Validating extracted data contract...");
+    validateSyllabusData(extractedData);
+
+    // Override total_days if AI returned something different
+    extractedData.total_days = days;
+
+    setProgress(95);
+    updateConsole("Running deterministic schedule crunch engine...");
+
+    const engine = new ScheduleEngine(extractedData);
+    const compiledPlan = engine.crunch();
+
+    setProgress(100);
+    setTimeout(() => {
+      if (progressContainer) progressContainer.style.display = "none";
+    }, 800);
+
+    if (outputArea) {
+      outputArea.style.display = "block";
+      outputArea.innerText = compiledPlan;
+      outputArea.scrollTop = 0;
+    }
+
+    updateConsole("Schedule generated successfully.");
+
+  } catch (err) {
+    updateConsole(`Error: ${err.message}`);
+    setProgress(100, "#ef4444");
+    console.error("Pipeline error:", err);
+  } finally {
+    crunchBtn.disabled = false;
+    crunchBtn.textContent = "Initialize & Crunch Plan";
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    const crunchButton = document.getElementById("crunch-btn"); // Ensure your html button has id="crunch-btn"
-    if (crunchButton) {
-        crunchButton.addEventListener("click", startCrunchPipeline);
-    }
+  if (crunchBtn) {
+    crunchBtn.addEventListener("click", startCrunchPipeline);
+  }
+
+  // Restore saved API keys into inputs
+  const savedGroq = localStorage.getItem('groq_api_key');
+  const savedGemini = localStorage.getItem('gemini_api_key');
+  if (groqKeyInput && savedGroq) groqKeyInput.value = savedGroq;
+  if (geminiKeyInput && savedGemini) geminiKeyInput.value = savedGemini;
+
+  // Collapsible settings panel
+  const toggle = document.getElementById('settings-toggle');
+  const panel = document.getElementById('settings-panel');
+  if (toggle && panel) {
+    toggle.addEventListener('click', () => {
+      const isOpen = panel.style.display !== 'none';
+      panel.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? 'API Settings' : 'Hide Settings';
+    });
+  }
 });

@@ -10,11 +10,20 @@
 
 <div class="container">
     <h1>Exam Cruncher</h1>
-    <p>Local-First Algorithmic Study Plan Generator</p>
-    
+    <p>Zero-Cost Algorithmic Study Plan Generator</p>
+
+    <button id="settings-toggle" class="settings-toggle-btn">API Settings</button>
+    <div id="settings-panel" class="settings-panel" style="display:none;">
+        <label for="groq-key-input">Groq API Key:</label>
+        <input type="password" id="groq-key-input" class="key-input" placeholder="gsk_...">
+        <label for="gemini-key-input">Gemini API Key:</label>
+        <input type="password" id="gemini-key-input" class="key-input" placeholder="AIza...">
+        <p class="settings-hint">Keys are stored locally in your browser. At least one key is required.</p>
+    </div>
+
     <label for="syllabus-input">Paste Raw Course Syllabus Text:</label>
     <textarea id="syllabus-input" placeholder="Paste modules, topics, or chapters here..."></textarea>
-    
+
     <div class="control-group">
         <div>
             <label for="days-input">Total Days Available:</label>
@@ -31,7 +40,7 @@
     </div>
 
     <div id="status-console">Console: Awaiting instruction...</div>
-    
+
     <div id="output-area"></div>
 </div>
 

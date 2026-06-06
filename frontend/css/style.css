@@ -48,6 +48,58 @@ p {
     font-size: 0.95rem;
 }
 
+.settings-toggle-btn {
+    width: auto;
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    background-color: var(--border-ui);
+}
+
+.settings-toggle-btn:hover {
+    background-color: #475569;
+}
+
+.settings-panel {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.settings-panel label {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.settings-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0.5rem 0 0 0;
+}
+
+.key-input {
+    width: 100%;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    color: var(--text-main);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    box-sizing: border-box;
+    outline: none;
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.key-input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 label {
     display: block;
     font-size: 0.875rem;
@@ -123,6 +175,12 @@ button:hover {
 
 button:active {
     transform: scale(0.98);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Progress Bar Tracking Engine Components */
