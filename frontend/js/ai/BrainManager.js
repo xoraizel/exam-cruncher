@@ -3,59 +3,98 @@ import { SyllabusSchema } from './schema.js';
 import { LocalInferenceEngine } from './inference.js';
 
 export class BrainManager {
-  constructor(userKeys = {}, onLogCallback) {
-    this.providers = ['GROQ', 'GEMINI'];
-    this.currentProviderIndex = 0;
-    this.keys = userKeys;
+  constructor(onLogCallback) {
     this.onLog = onLogCallback || console.log;
   }
 
   async getSyllabusData(rawText, totalDays, onProgressUpdate) {
-    this.currentProviderIndex = 0;
-
+    // Tier 1 & 2: Try server-side cloud providers via edge function
     try {
-      return await this.attemptCloudParse(rawText, totalDays);
+      return await this.callEdgeFunction(rawText, totalDays);
     } catch (error) {
-      console.warn("Cloud parsing tier fully exhausted:", error.message);
-      this.onLog("Cloud tier exhausted. Prompting for local engine fallback...");
+      console.warn("Edge function cloud tier exhausted:", error.message);
+      this.onLog("Cloud providers exhausted. Offering fallback options...");
 
-      const userAgreed = await this.promptUserForLocalInference();
-      if (userAgreed) {
+      // Tier 3: Ask user what they want to do
+      const choice = await this.promptFallbackChoice();
+      if (choice === 'local') {
         return await this.launchLocalEngine(rawText, totalDays, onProgressUpdate);
+      } else if (choice === 'own_key') {
+        return await this.callWithUserKey(rawText, totalDays);
       } else {
-        throw new Error("Analysis halted by user preference.");
+        throw new Error("Analysis halted by user.");
       }
     }
   }
 
-  async attemptCloudParse(text, days) {
-    if (this.currentProviderIndex >= this.providers.length) {
-      throw new Error("All free-tier API services hit rate limits or downtime.");
+  async callEdgeFunction(text, days) {
+    this.onLog("Routing to cloud AI via edge function...");
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const url = `${supabaseUrl}/functions/v1/ai-extract`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseAnonKey}`,
+        "apikey": supabaseAnonKey
+      },
+      body: JSON.stringify({ text, days })
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(body.error || body.detail || `Edge function returned ${response.status}`);
     }
 
-    const provider = this.providers[this.currentProviderIndex];
-    this.onLog(`Routing to cloud: ${provider}...`);
+    const result = await response.json();
+    if (result.error) {
+      throw new Error(result.error);
+    }
 
-    try {
-      let result;
-      if (provider === 'GROQ') {
-        result = await this.callGroqAPI(text, days);
-      } else if (provider === 'GEMINI') {
-        result = await this.callGeminiAPI(text, days);
+    this.onLog(`Cloud extraction succeeded via ${result.provider}.`);
+    return result.data;
+  }
+
+  async promptFallbackChoice() {
+    return new Promise((resolve) => {
+      const choice = prompt(
+        "Cloud AI providers are currently busy or at capacity.\n\n" +
+        "Choose a fallback option:\n" +
+        "  Type 'local' to download and run a small AI model in your browser (uses GPU/RAM)\n" +
+        "  Type 'key' to enter your own Groq or Gemini API key\n" +
+        "  Press Cancel to stop"
+      );
+      if (choice === null) {
+        resolve('cancel');
+      } else if (choice.trim().toLowerCase() === 'local') {
+        resolve('local');
+      } else if (choice.trim().toLowerCase() === 'key') {
+        resolve('own_key');
+      } else {
+        resolve('cancel');
       }
-      this.onLog(`${provider} extraction succeeded.`);
-      return result;
-    } catch (apiError) {
-      this.onLog(`${provider} failed: ${apiError.message}. Escalating...`);
-      this.currentProviderIndex++;
-      return await this.attemptCloudParse(text, days);
+    });
+  }
+
+  async callWithUserKey(text, days) {
+    const provider = prompt("Which API key do you want to use? Type 'groq' or 'gemini':");
+    if (!provider) throw new Error("No provider selected.");
+
+    const key = prompt(`Enter your ${provider.toLowerCase() === 'groq' ? 'Groq' : 'Gemini'} API key:`);
+    if (!key) throw new Error("No API key entered.");
+
+    if (provider.toLowerCase() === 'groq') {
+      return await this.callGroqDirect(text, days, key.trim());
+    } else {
+      return await this.callGeminiDirect(text, days, key.trim());
     }
   }
 
-  async callGroqAPI(text, days) {
-    const apiKey = this.keys.GROQ_API_KEY;
-    if (!apiKey) throw new Error("Groq API Key not configured.");
-
+  async callGroqDirect(text, days, apiKey) {
+    this.onLog("Calling Groq directly with your key...");
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -65,14 +104,8 @@ export class BrainManager {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          {
-            role: "system",
-            content: "You are a professional academic coordinator. You must break down raw text syllabi into a clear modular timeline format following the provided JSON schema definitions perfectly. Each module should span a range of days and contain daily_tasks with topics. Every module must end with at least one revision day where is_revision is true."
-          },
-          {
-            role: "user",
-            content: `Extract modules from this raw syllabus text and build a ${days}-day study timeline:\n\n${text}\n\nReturn JSON matching the syllabus_extraction schema with subject_name, total_days, and modules containing daily_tasks.`
-          }
+          { role: "system", content: "You are a professional academic coordinator. Break down raw text syllabi into a clear modular timeline format following the provided JSON schema. Each module should span a range of days and contain daily_tasks with topics. Every module must end with at least one revision day where is_revision is true." },
+          { role: "user", content: `Extract modules from this raw syllabus text and build a ${days}-day study timeline:\n\n${text}\n\nReturn JSON matching the syllabus_extraction schema with subject_name, total_days, and modules containing daily_tasks.` }
         ],
         response_format: {
           type: "json_schema",
@@ -88,13 +121,12 @@ export class BrainManager {
     }
 
     const result = await response.json();
+    this.onLog("Groq extraction succeeded.");
     return JSON.parse(result.choices[0].message.content);
   }
 
-  async callGeminiAPI(text, days) {
-    const apiKey = this.keys.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Gemini API Key not configured.");
-
+  async callGeminiDirect(text, days, apiKey) {
+    this.onLog("Calling Gemini directly with your key...");
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
@@ -102,10 +134,10 @@ export class BrainManager {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: `Extract modules from this raw syllabus text and build a ${days}-day study timeline:\n\n${text}\n\nReturn JSON with subject_name, total_days, and modules containing daily_tasks with topics (each topic has name and is_revision fields). Every module should end with revision days.` }]
+          parts: [{ text: `Extract modules from this raw syllabus text and build a ${days}-day study timeline:\n\n${text}\n\nReturn JSON with subject_name, total_days, and modules containing daily_tasks with topics (each topic has name and is_revision). Every module should end with revision days.` }]
         }],
         systemInstruction: {
-          parts: [{ text: "You are a professional academic coordinator. You must break down raw text syllabi into a clear modular timeline format. Return strictly valid JSON matching the schema with subject_name, total_days, and modules containing daily_tasks." }]
+          parts: [{ text: "You are a professional academic coordinator. Break down raw text syllabi into a clear modular timeline format. Return strictly valid JSON matching the schema with subject_name, total_days, and modules containing daily_tasks." }]
         },
         generationConfig: {
           responseMimeType: "application/json",
@@ -120,22 +152,12 @@ export class BrainManager {
     }
 
     const result = await response.json();
+    this.onLog("Gemini extraction succeeded.");
     return JSON.parse(result.candidates[0].content.parts[0].text);
   }
 
-  async promptUserForLocalInference() {
-    return new Promise((resolve) => {
-      const userConsent = confirm(
-        "Cloud API paths are busy or limits are hit.\n\n" +
-        "To process your data now, we can run a Local WebLLM Engine in your browser.\n\n" +
-        "Turn on Local Device Processing? (Uses your GPU/RAM until parsing completes)"
-      );
-      resolve(userConsent);
-    });
-  }
-
   async launchLocalEngine(text, days, onProgressUpdate) {
-    this.onLog("Booting local WebLLM engine under user approval...");
+    this.onLog("Booting local WebLLM engine...");
 
     const localEngine = new LocalInferenceEngine(this.onLog);
     await localEngine.initEngine(onProgressUpdate);

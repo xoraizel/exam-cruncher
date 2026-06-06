@@ -12,36 +12,6 @@
     <h1>Exam Cruncher</h1>
     <p>Zero-Cost Algorithmic Study Plan Generator</p>
 
-    <!-- Auth Section -->
-    <section id="auth-section">
-        <form id="auth-form" class="auth-form" style="display:flex;">
-            <div class="auth-fields">
-                <input type="email" id="auth-email" placeholder="Email" required autocomplete="email">
-                <input type="password" id="auth-password" placeholder="Password (6+ chars)" required autocomplete="current-password">
-                <span id="auth-error" class="auth-error"></span>
-            </div>
-            <div class="auth-buttons">
-                <button type="submit" id="auth-submit-btn" class="btn-primary">Sign In</button>
-                <button type="button" id="auth-toggle-btn" class="btn-link">Need an account? Sign Up</button>
-            </div>
-        </form>
-        <div id="user-info" style="display:none;" class="user-info">
-            <span id="user-email" class="user-email"></span>
-            <button id="sign-out-btn" class="btn-small btn-outline">Sign Out</button>
-        </div>
-    </section>
-
-    <!-- API Settings -->
-    <button id="settings-toggle" class="settings-toggle-btn">API Settings</button>
-    <div id="settings-panel" class="settings-panel" style="display:none;">
-        <label for="groq-key-input">Groq API Key:</label>
-        <input type="password" id="groq-key-input" class="key-input" placeholder="gsk_...">
-        <label for="gemini-key-input">Gemini API Key:</label>
-        <input type="password" id="gemini-key-input" class="key-input" placeholder="AIza...">
-        <p class="settings-hint">Keys are stored locally in your browser. At least one key is required.</p>
-    </div>
-
-    <!-- Plan Input -->
     <label for="syllabus-input">Paste Raw Course Syllabus Text:</label>
     <textarea id="syllabus-input" placeholder="Paste modules, topics, or chapters here..."></textarea>
 
@@ -61,18 +31,6 @@
     </div>
 
     <div id="status-console">Console: Awaiting instruction...</div>
-
-    <!-- Saved Plans History -->
-    <section id="history-section" style="display:none;">
-        <h2 class="section-title">Saved Plans</h2>
-        <ul id="history-list" class="history-list"></ul>
-    </section>
-
-    <!-- Plan Progress Tracking -->
-    <section id="plan-progress-section" style="display:none;">
-        <h2 id="plan-progress-title" class="section-title">Progress</h2>
-        <div id="plan-progress-list" class="progress-list"></div>
-    </section>
 
     <div id="output-area"></div>
 </div>
