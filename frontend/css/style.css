@@ -1,0 +1,178 @@
+/* frontend/css/style.css */
+
+:root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-color: #3b82f6; /* Glowing primary blue */
+    --accent-glow: rgba(59, 130, 246, 0.25);
+    --border-ui: #334155;
+    --input-bg: #020617;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 640px;
+    background-color: var(--bg-card);
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-ui);
+    box-sizing: border-box;
+    margin: 1rem;
+}
+
+h1 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+p {
+    margin: 0 0 1.5rem 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: var(--text-main);
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    color: var(--text-main);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    box-sizing: border-box;
+    margin-bottom: 1.25rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+textarea:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.control-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    align-items: flex-end;
+}
+
+input[type="number"] {
+    width: 100%;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    color: var(--text-main);
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="number"]:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+button {
+    width: 100%;
+    background-color: var(--accent-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+button:hover {
+    background-color: #2563eb;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* Progress Bar Tracking Engine Components */
+.progress-container {
+    display: none; /* Controlled dynamically via JS */
+    width: 100%;
+    background-color: var(--border-ui);
+    height: 8px;
+    border-radius: 4px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: var(--accent-color);
+    transition: width 0.15s ease-out;
+    box-shadow: 0 0 8px var(--accent-color);
+}
+
+/* Simulated System Terminal UI Terminal Console */
+#status-console {
+    width: 100%;
+    background-color: #020617;
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8rem;
+    color: #38bdf8; /* Bright cyber terminal text colors */
+    max-height: 120px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+}
+
+/* Output Logic Container */
+#output-area {
+    display: none; /* Controlled dynamically via JS */
+    width: 100%;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-ui);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1.25rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+}
