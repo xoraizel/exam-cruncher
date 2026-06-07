@@ -2,28 +2,25 @@
 import { SyllabusSchema } from './schema.js';
 import { LocalInferenceEngine } from './inference.js';
 
+export class CloudExhaustedError extends Error {
+  constructor(message = "Cloud AI providers exhausted.") {
+    super(message);
+    this.name = "CloudExhaustedError";
+  }
+}
+
 export class BrainManager {
   constructor(onLogCallback) {
     this.onLog = onLogCallback || console.log;
   }
 
   async getSyllabusData(rawText, totalDays, onProgressUpdate) {
-    // Tier 1 & 2: Try server-side cloud providers via edge function
     try {
       return await this.callEdgeFunction(rawText, totalDays);
     } catch (error) {
-      console.warn("Edge function cloud tier exhausted:", error.message);
-      this.onLog("Cloud providers exhausted. Offering fallback options...");
-
-      // Tier 3: Ask user what they want to do
-      const choice = await this.promptFallbackChoice();
-      if (choice === 'local') {
-        return await this.launchLocalEngine(rawText, totalDays, onProgressUpdate);
-      } else if (choice === 'own_key') {
-        return await this.callWithUserKey(rawText, totalDays);
-      } else {
-        throw new Error("Analysis halted by user.");
-      }
+      if (error instanceof CloudExhaustedError) throw error;
+      // Treat any other failure as cloud exhausted
+      throw new CloudExhaustedError(error.message);
     }
   }
 
@@ -46,51 +43,29 @@ export class BrainManager {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      throw new Error(body.error || body.detail || `Edge function returned ${response.status}`);
+      const msg = body.error || body.detail || `Edge function returned ${response.status}`;
+      if (response.status === 503) {
+        throw new CloudExhaustedError(msg);
+      }
+      throw new Error(msg);
     }
 
     const result = await response.json();
     if (result.error) {
-      throw new Error(result.error);
+      throw new CloudExhaustedError(result.error);
     }
 
     this.onLog(`Cloud extraction succeeded via ${result.provider}.`);
     return result.data;
   }
 
-  async promptFallbackChoice() {
-    return new Promise((resolve) => {
-      const choice = prompt(
-        "Cloud AI providers are currently busy or at capacity.\n\n" +
-        "Choose a fallback option:\n" +
-        "  Type 'local' to download and run a small AI model in your browser (uses GPU/RAM)\n" +
-        "  Type 'key' to enter your own Groq or Gemini API key\n" +
-        "  Press Cancel to stop"
-      );
-      if (choice === null) {
-        resolve('cancel');
-      } else if (choice.trim().toLowerCase() === 'local') {
-        resolve('local');
-      } else if (choice.trim().toLowerCase() === 'key') {
-        resolve('own_key');
-      } else {
-        resolve('cancel');
-      }
-    });
-  }
-
-  async callWithUserKey(text, days) {
-    const provider = prompt("Which API key do you want to use? Type 'groq' or 'gemini':");
-    if (!provider) throw new Error("No provider selected.");
-
-    const key = prompt(`Enter your ${provider.toLowerCase() === 'groq' ? 'Groq' : 'Gemini'} API key:`);
-    if (!key) throw new Error("No API key entered.");
-
-    if (provider.toLowerCase() === 'groq') {
-      return await this.callGroqDirect(text, days, key.trim());
-    } else {
-      return await this.callGeminiDirect(text, days, key.trim());
+  async runWithUserKey(text, days, provider, apiKey) {
+    if (provider === 'groq') {
+      return await this.callGroqDirect(text, days, apiKey);
+    } else if (provider === 'gemini') {
+      return await this.callGeminiDirect(text, days, apiKey);
     }
+    throw new Error(`Unknown provider: ${provider}`);
   }
 
   async callGroqDirect(text, days, apiKey) {
@@ -156,7 +131,7 @@ export class BrainManager {
     return JSON.parse(result.candidates[0].content.parts[0].text);
   }
 
-  async launchLocalEngine(text, days, onProgressUpdate) {
+  async runLocalEngine(text, days, onProgressUpdate) {
     this.onLog("Booting local WebLLM engine...");
 
     const localEngine = new LocalInferenceEngine(this.onLog);

@@ -32,6 +32,43 @@
 
     <div id="status-console">Console: Awaiting instruction...</div>
 
+    <!-- Fallback UI: shown when cloud AI is exhausted -->
+    <div id="fallback-panel" class="fallback-panel" style="display:none;">
+        <h2 class="fallback-title">Cloud AI Unavailable</h2>
+        <p class="fallback-desc">The cloud AI providers are currently at capacity. Choose a fallback option to continue:</p>
+        <div class="fallback-options">
+            <button id="fallback-local-btn" class="fallback-btn fallback-btn-local">
+                <span class="fallback-btn-icon">&#9881;</span>
+                <span class="fallback-btn-text">Use Local Engine</span>
+                <span class="fallback-btn-sub">Downloads a small AI model to your browser (uses GPU/RAM)</span>
+            </button>
+            <button id="fallback-key-btn" class="fallback-btn fallback-btn-key">
+                <span class="fallback-btn-icon">&#128273;</span>
+                <span class="fallback-btn-text">Enter Your Own API Key</span>
+                <span class="fallback-btn-sub">Use your personal Groq or Gemini key</span>
+            </button>
+            <button id="fallback-cancel-btn" class="fallback-btn fallback-btn-cancel">
+                <span class="fallback-btn-text">Cancel</span>
+            </button>
+        </div>
+
+        <!-- Inline key entry form -->
+        <div id="key-entry-form" class="key-entry-form" style="display:none;">
+            <label for="key-provider-select">Provider:</label>
+            <select id="key-provider-select">
+                <option value="groq">Groq</option>
+                <option value="gemini">Gemini</option>
+            </select>
+            <label for="key-value-input">API Key:</label>
+            <input type="password" id="key-value-input" class="key-input" placeholder="Paste your API key here...">
+            <div class="key-entry-actions">
+                <button id="key-submit-btn" class="btn-primary">Run with My Key</button>
+                <button id="key-back-btn" class="btn-outline">Back</button>
+            </div>
+            <span id="key-entry-error" class="auth-error"></span>
+        </div>
+    </div>
+
     <div id="output-area"></div>
 </div>
 
