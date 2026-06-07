@@ -35,29 +35,47 @@ const SYLLABUS_SCHEMA = {
                       name: { type: "string", description: "Topic title." },
                       is_revision: { type: "boolean", description: "Revision flag." }
                     },
-                    required: ["name", "is_revision"],
-                    additionalProperties: false
+                    required: ["name", "is_revision"]
                   }
                 },
                 focus_notes: { type: "string", description: "Pedagogical notes." }
               },
-              required: ["day", "topics"],
-              additionalProperties: false
+              required: ["day", "topics"]
             }
           }
         },
-        required: ["name", "start_day", "end_day", "daily_tasks"],
-        additionalProperties: false
+        required: ["name", "start_day", "end_day", "daily_tasks"]
       }
     }
   },
-  required: ["subject_name", "total_days", "modules"],
-  additionalProperties: false
+  required: ["subject_name", "total_days", "modules"]
 };
+
+// Gemini rejects additionalProperties, so strip it recursively
+function stripAdditionalProperties(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === "additionalProperties") continue;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      cleaned[key] = stripAdditionalProperties(value as Record<string, unknown>);
+    } else if (Array.isArray(value)) {
+      cleaned[key] = value.map(item =>
+        item && typeof item === "object" && !Array.isArray(item)
+          ? stripAdditionalProperties(item as Record<string, unknown>)
+          : item
+      );
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+const GEMINI_SCHEMA = stripAdditionalProperties(SYLLABUS_SCHEMA);
 
 const SYSTEM_PROMPT = "You are a professional academic coordinator. Break down raw text syllabi into a clear modular timeline format following the provided JSON schema. Each module should span a range of days and contain daily_tasks with topics. Every module must end with at least one revision day where is_revision is true.";
 
-async function callGroq(text: string, days: number, apiKey: string): Promise<object> {
+async function callGroq(text: string, days: number, apiKey: string): Promise<{ provider: string; data: object }> {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -88,10 +106,10 @@ async function callGroq(text: string, days: number, apiKey: string): Promise<obj
   }
 
   const result = await response.json();
-  return JSON.parse(result.choices[0].message.content);
+  return { provider: "groq", data: JSON.parse(result.choices[0].message.content) };
 }
 
-async function callGemini(text: string, days: number, apiKey: string): Promise<object> {
+async function callGemini(text: string, days: number, apiKey: string): Promise<{ provider: string; data: object }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(url, {
@@ -106,7 +124,7 @@ async function callGemini(text: string, days: number, apiKey: string): Promise<o
       },
       generationConfig: {
         responseMimeType: "application/json",
-        responseSchema: SYLLABUS_SCHEMA
+        responseSchema: GEMINI_SCHEMA
       }
     })
   });
@@ -117,7 +135,7 @@ async function callGemini(text: string, days: number, apiKey: string): Promise<o
   }
 
   const result = await response.json();
-  return JSON.parse(result.candidates[0].content.parts[0].text);
+  return { provider: "gemini", data: JSON.parse(result.candidates[0].content.parts[0].text) };
 }
 
 Deno.serve(async (req: Request) => {
@@ -126,7 +144,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { text, days } = await req.json();
+    const body = await req.json();
+    const { text, days, provider, api_key } = body;
 
     if (!text || !days || days <= 0) {
       return new Response(
@@ -135,17 +154,46 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // If user provided their own key, use it directly
+    if (provider && api_key) {
+      try {
+        if (provider === "groq") {
+          const result = await callGroq(text, days, api_key);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else if (provider === "gemini") {
+          const result = await callGemini(text, days, api_key);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ error: `Unknown provider: ${provider}` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: err.message }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Server-side keys fallback
     const groqKey = Deno.env.get("GroqAi_key") ?? "";
     const geminiKey = Deno.env.get("GoogleAi_key") ?? "";
 
     let lastError: string = "";
 
-    // Tier 1: Groq
     if (groqKey) {
       try {
-        const data = await callGroq(text, days, groqKey);
+        const result = await callGroq(text, days, groqKey);
         return new Response(
-          JSON.stringify({ provider: "groq", data }),
+          JSON.stringify(result),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (err) {
@@ -154,12 +202,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Tier 2: Gemini
     if (geminiKey) {
       try {
-        const data = await callGemini(text, days, geminiKey);
+        const result = await callGemini(text, days, geminiKey);
         return new Response(
-          JSON.stringify({ provider: "gemini", data }),
+          JSON.stringify(result),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (err) {
@@ -168,7 +215,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // All cloud providers exhausted
     return new Response(
       JSON.stringify({ error: "All cloud AI providers exhausted. Please use local engine or provide your own API key.", detail: lastError }),
       { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }

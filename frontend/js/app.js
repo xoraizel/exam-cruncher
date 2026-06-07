@@ -101,9 +101,10 @@ async function renderPlan(extractedData) {
   updateConsole("Schedule generated successfully.");
 }
 
-function finishPipeline(err) {
+function handleError(err) {
   updateConsole(`Error: ${err.message}`);
   setProgress(100, "#ef4444");
+  if (progressContainer) progressContainer.style.display = "block";
   console.error("Pipeline error:", err);
 }
 
@@ -153,31 +154,36 @@ async function startCrunchPipeline() {
     if (err instanceof CloudExhaustedError) {
       updateConsole("Cloud providers exhausted. Choose a fallback option below.");
       showFallback();
-      return; // Don't reset button yet — user may choose fallback
+      // Don't reset button — user will interact with fallback panel
+      return;
     }
-    finishPipeline(err);
-  } finally {
-    // Only reset if we're done (not showing fallback)
-    if (!fallbackPanel || fallbackPanel.style.display === 'none') {
-      resetCrunchBtn();
-    }
+    handleError(err);
   }
+
+  resetCrunchBtn();
 }
 
 async function handleLocalFallback() {
   hideFallback();
   updateConsole("Starting local engine fallback...");
+  if (progressContainer) {
+    progressContainer.style.display = "block";
+    setProgress(5, "var(--accent-color)");
+  }
+  crunchBtn.disabled = true;
+  crunchBtn.textContent = "Running local engine...";
+
   try {
     const extractedData = await brain.runLocalEngine(pendingText, pendingDays, pendingProgressCallback);
     await renderPlan(extractedData);
   } catch (err) {
-    finishPipeline(err);
-  } finally {
-    resetCrunchBtn();
+    handleError(err);
   }
+
+  resetCrunchBtn();
 }
 
-async function handleKeyFallback() {
+function handleKeyFallback() {
   showKeyForm();
 }
 
@@ -195,22 +201,30 @@ async function handleKeySubmit() {
     keySubmitBtn.disabled = true;
     keySubmitBtn.textContent = "Running...";
   }
+  crunchBtn.disabled = true;
+  crunchBtn.textContent = "Crunching...";
+
+  if (progressContainer) {
+    progressContainer.style.display = "block";
+    setProgress(5, "var(--accent-color)");
+  }
 
   try {
     const extractedData = await brain.runWithUserKey(pendingText, pendingDays, provider, apiKey);
     hideFallback();
     await renderPlan(extractedData);
+    resetCrunchBtn();
   } catch (err) {
     if (keyEntryError) keyEntryError.textContent = err.message;
-    return;
-  } finally {
-    if (keySubmitBtn) {
-      keySubmitBtn.disabled = false;
-      keySubmitBtn.textContent = "Run with My Key";
-    }
+    handleError(err);
+    crunchBtn.disabled = false;
+    crunchBtn.textContent = "Initialize & Crunch Plan";
   }
 
-  resetCrunchBtn();
+  if (keySubmitBtn) {
+    keySubmitBtn.disabled = false;
+    keySubmitBtn.textContent = "Run with My Key";
+  }
 }
 
 function handleKeyBack() {
@@ -221,6 +235,7 @@ function handleCancel() {
   hideFallback();
   updateConsole("Analysis halted by user.");
   setProgress(0);
+  if (progressContainer) progressContainer.style.display = "none";
   resetCrunchBtn();
 }
 
